@@ -92,12 +92,14 @@ app.get('/expenses', (req, res) => {
       params.push(category);
     }
 
-    // Sort by Date
+   // Sort by Date
     if (sort === 'date_desc') {
       query += " ORDER BY date DESC, created_at DESC";
+    } else if (sort === 'date_asc') {
+      query += " ORDER BY date ASC, created_at ASC";
     } else {
       // Default fallback
-      query += " ORDER BY created_at DESC";
+      query += " ORDER BY date DESC, created_at DESC"; 
     }
 
     const stmt = db.prepare(query);
