@@ -1,0 +1,197 @@
+# 🚀 Fenmo Assessment: Expense Tracker
+
+A full-stack, production-ready minimal expense tracker built for the Fenmo SDE-I technical assessment. Designed with a focus on real-world reliability, data correctness, and rapid execution.
+
+## 🔗 Live Links
+- **Frontend App (Vercel):** `[Insert your Vercel link here]`
+- **Backend API (Render):** `[Insert your Render link here]`
+
+---
+
+## 🛠 Tech Stack
+- **Frontend:** React, Vite, native CSS (Flexbox/Grid)
+- **Backend:** Node.js, Express.js
+- **Database:** SQLite (via `better-sqlite3`)
+- **Testing:** Jest, Supertest
+- **Security & Ops:** Helmet, Morgan, Express Rate Limit
+
+---
+
+## ✨ Features Implemented
+
+### Core Requirements
+- ✅ Create new expense entries (amount, category, description, date).
+- ✅ View a consolidated list of expenses.
+- ✅ Filter expenses dynamically by category.
+- ✅ Sort expenses by date (Newest First / Oldest First).
+- ✅ Dynamic calculation of visible expense totals using Indian Rupee formatting (`Intl.NumberFormat`).
+
+### Advanced Edge Cases & "Nice-to-Haves"
+- 🛡️ **Idempotency (Retry Handling):** Prevents duplicate database entries if the user double-clicks or the network hangs.
+- 💰 **Robust Currency Handling:** Floats are converted to integer cents/paise on the backend to prevent JavaScript precision errors.
+- 📊 **Dynamic Category Breakdown:** A summary UI showing total spending per category.
+- 🚦 **UX Polish:** Explicit `loading`, `error`, and `saving` states. Disabled submit buttons during API calls to prevent rapid-fire requests.
+- 🧪 **Automated Integration Tests:** Proving backend reliability.
+
+---
+
+## 🏃‍♂️ How to Run Locally
+
+### 1. Start the Backend
+\`\`\`bash
+cd backend
+npm install
+npm run dev
+\`\`\`
+*(The SQLite database `database.db` will automatically generate on the first run).*
+
+### 2. Run the Test Suite
+\`\`\`bash
+cd backend
+npm run test
+\`\`\`
+
+### 3. Start the Frontend
+Open a new terminal tab:
+\`\`\`bash
+cd frontend
+npm install
+npm run dev
+\`\`\`
+*(Ensure `.env` contains `VITE_BACKEND_URL=http://localhost:3000`)*
+
+---
+
+## 🧠 Key Architecture & Design Decisions
+
+### 1. Why SQLite over an In-Memory Array or Cloud DB?
+While an in-memory array is faster to set up, it fails to demonstrate true data persistence and schema design. Conversely, provisioning a PostgreSQL/MongoDB cluster would consume valuable sprint time. SQLite was chosen because it provides **ACID compliance**, enforces strict data types, and demonstrates production-like relational architecture with zero configuration overhead for the evaluator.
+
+### 2. The Language Choice (JavaScript vs. TypeScript/Go/Python)
+The Fenmo JD highlights TypeScript, Go, and Python. However, the assessment instructions permitted the use of *"frameworks, libraries, or tools you would normally use on the job"*. 
+
+Given the strict 4-hour timebox, I prioritized **execution speed and system robustness**. By opting for pure JavaScript (Node.js/React), I bypassed the configuration overhead of a TypeScript compiler or Go environment. This allowed me to allocate time to what actually matters in a financial tool: idempotency, integer math for currency, integration testing, and security headers. I am highly comfortable transitioning this logic to a strictly typed TypeScript or Go environment for production.
+
+### 3. Integer Math for Currency (Preventing Floating-Point Disasters)
+**The Problem:** JavaScript floating-point arithmetic is unreliable for money. `10.50 + 10.50` can yield `21.00000000001` due to binary representation limits.
+
+**The Solution:** 
+- **On Input:** When a user submits `amount: 10.50`, the backend immediately multiplies by 100: `Math.round(10.50 * 100) = 1050` (stored as integer).
+- **In Database:** SQLite stores `1050` as `INTEGER` — no precision loss.
+- **On Output:** When returning to the frontend, divide by 100: `1050 / 100 = 10.50` for rendering.
+
+This ensures all internal calculations (totals, filters, aggregations) work with integers, eliminating precision errors entirely. The backend prepares statements to enforce this conversion:
+```javascript
+const amountInCents = Math.round(Number(amount) * 100);
+insertExpense.run({ ...newExpense, amount: amountInCents });
+```
+
+### 4. Idempotency Keys (Network Retry Safety)
+**The Problem:** If a user clicks "Submit," the network hangs, and they mash the button 5 more times, the backend might create 5 duplicate records.
+
+**The Solution:**
+- **Client-Side:** Generate a unique UUID for each submission attempt:
+  ```javascript
+  const idempotencyKey = uuidv4();
+  fetch(url, { headers: { 'Idempotency-Key': idempotencyKey } })
+  ```
+- **Server-Side:** Before inserting, check if this `Idempotency-Key` exists:
+  ```javascript
+  const existing = checkIdempotency.get(idempotencyKey);
+  if (existing) return res.status(200).json(existing); // Return original record
+  ```
+- **Database:** The `idempotency_key` column has a `UNIQUE` constraint, preventing accidental duplicates even if the check fails.
+
+**Result:** Whether the user clicks submit once or ten times on a spotty connection, only one expense record is created. The API always returns the same successful record.
+
+### 5. Security Hardening (Production Armor)
+
+#### 5.1 Helmet.js – HTTP Security Headers
+Helmet automatically adds 15+ HTTP security headers to every response, protecting against XSS, clickjacking, MIME-type sniffing, and other common vulnerabilities:
+```javascript
+app.use(helmet()); // Adds headers like:
+// Content-Security-Policy, X-Frame-Options, X-XSS-Protection, etc.
+```
+
+#### 5.2 Express Rate Limiting – DDOS Prevention
+Limits each IP to **100 requests per 15 minutes** on `/expenses` endpoints:
+```javascript
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: "Too many requests, please try again later." }
+});
+app.use('/expenses', limiter);
+```
+This protects against brute-force attacks and accidental DDOS from misbehaving clients.
+
+#### 5.3 CORS Configuration
+The backend explicitly allows frontend origins and restricts cross-origin requests:
+```javascript
+app.use(cors()); // Allows safe cross-origin communication
+```
+
+### 6. API Observability & Logging
+Morgan middleware logs all API requests to the terminal in real-time:
+```javascript
+app.use(morgan('tiny')); // Logs: "POST /expenses 201 5ms" to console
+```
+This provides instant visibility into API activity, response codes, and performance. In production, these logs would pipe to a centralized logging service (CloudWatch, Datadog, etc.).
+
+### 7. Error Handling & State Management
+The application implements **explicit error and loading states** on both frontend and backend:
+
+**Backend:**
+- All endpoints wrapped in `try/catch` blocks
+- Validation errors return 400 (client error)
+- Server errors return 500 with descriptive messages
+- Prepared statements prevent SQL injection
+
+**Frontend:**
+- `loading` state: Shows "Loading expenses..." during API calls
+- `error` state: Displays red error box with actionable messages
+- `isSubmitting` state: Disables submit button during POST, changes text to "Saving..."
+- Auto-focus on amount input after submission for rapid data entry
+
+This prevents the dreaded "frozen UI" and gives users immediate feedback on API success/failure.
+
+### 8. Database Lifecycle & Graceful Shutdown
+**The Problem:** If the Node process is killed abruptly (Ctrl+C), an in-flight SQLite write operation can corrupt the database file.
+
+**The Solution:**
+```javascript
+process.on('SIGINT', () => {
+  console.log('\nClosing database connection...');
+  db.close(); // Flush pending writes
+  process.exit(0); // Exit cleanly
+});
+```
+
+When the server receives a shutdown signal, it:
+1. Closes the database connection (flushing any pending writes)
+2. Exits the process gracefully
+3. Prevents file corruption and data loss
+
+### 9. Financial Data Integrity – Prepared Statements
+All database operations use **prepared statements** to prevent SQL injection and ensure data consistency:
+```javascript
+const insertExpense = db.prepare(`
+  INSERT INTO expenses (id, amount, category, description, date, idempotency_key)
+  VALUES (@id, @amount, @category, @description, @date, @idempotency_key)
+`);
+insertExpense.run(newExpense);
+```
+
+Prepared statements:
+- Prevent SQL injection attacks
+- Pre-compile queries for faster execution
+- Bind variables safely without string concatenation
+- Enforce strict type checking
+
+---
+
+## ⚖️ Trade-offs & What I Intentionally Left Out
+
+1. **User Authentication:** The prompt focused on edge cases, retry logic, and data correctness. Building a secure JWT/OAuth flow would have introduced massive complexity and distracted from the core requirements. The API currently assumes a single-tenant environment.
+2. **Pagination:** Currently, `GET /expenses` returns all records. In a multi-year production rollout, I would implement cursor-based pagination to prevent massive data payloads and slow UI rendering.
+3. **Complex UI Frameworks:** I used native CSS and inline styles to build a modern, responsive card layout rather than spending time installing and configuring Tailwind or Material-UI.
