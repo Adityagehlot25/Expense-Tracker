@@ -124,7 +124,7 @@ function App() {
             
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
               <label style={{ fontWeight: '600', marginBottom: '5px', fontSize: '14px' }}>Amount (₹)</label>
-              <input type="number" id="amount-input" name="amount" value={formData.amount} onChange={handleInputChange} step="0.01" min="0.01" style={inputStyle} required />
+              <input type="number" id="amount-input" name="amount" value={formData.amount} onChange={handleInputChange} step="0.01" min="0.01" placeholder="0" style={inputStyle} required />
 
               <label style={{ fontWeight: '600', marginBottom: '5px', fontSize: '14px' }}>Category</label>
               <select name="category" value={formData.category} onChange={handleInputChange} style={inputStyle} required>
