@@ -2,10 +2,22 @@ const express = require('express');
 const cors = require('cors');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
+app.use(helmet()); // Adds standard security headers
+app.use(morgan('tiny')); // Logs API requests to the terminal (e.g., "POST /expenses 201")
 app.use(cors());
 app.use(express.json());
+
+// Limit each IP to 100 requests per 15 minutes
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: "Too many requests, please try again later." }
+});
 
 // Initialize SQLite Database (creates a file called database.db)
 const db = new Database('database.db');
@@ -35,7 +47,7 @@ const checkIdempotency = db.prepare(`
 `);
 
 // POST /expenses
-app.post('/expenses', (req, res) => {
+app.post('/expenses', limiter, (req, res) => {
   try {
     const { amount, category, description, date } = req.body;
     const idempotencyKey = req.headers['idempotency-key'];
@@ -80,7 +92,7 @@ app.post('/expenses', (req, res) => {
 });
 
 // GET /expenses
-app.get('/expenses', (req, res) => {
+app.get('/expenses', limiter, (req, res) => {
   try {
     const { category, sort } = req.query;
     let query = "SELECT * FROM expenses";
@@ -119,6 +131,20 @@ app.get('/expenses', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
+
+// Graceful shutdown to prevent SQLite corruption
+process.on('SIGINT', () => {
+  console.log('\nClosing database connection...');
+  db.close();
+  process.exit(0);
 });
+
+// Only start the server if this file is run directly (not imported by a test)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Backend running on http://localhost:${PORT}`);
+  });
+}
+
+// Export the app for testing
+module.exports = app;

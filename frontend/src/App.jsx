@@ -73,6 +73,7 @@ function App() {
 
       await fetchExpenses();
       setFormData({ ...formData, amount: '', description: '' });
+      document.getElementById('amount-input').focus();
     } catch (err) {
       setError('Failed to save expense. Please try again.');
     } finally {
@@ -123,7 +124,7 @@ function App() {
             
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
               <label style={{ fontWeight: '600', marginBottom: '5px', fontSize: '14px' }}>Amount (₹)</label>
-              <input type="number" name="amount" value={formData.amount} onChange={handleInputChange} step="0.01" min="0.01" style={inputStyle} required />
+              <input type="number" id="amount-input" name="amount" value={formData.amount} onChange={handleInputChange} step="0.01" min="0.01" style={inputStyle} required />
 
               <label style={{ fontWeight: '600', marginBottom: '5px', fontSize: '14px' }}>Category</label>
               <select name="category" value={formData.category} onChange={handleInputChange} style={inputStyle} required>
@@ -176,7 +177,7 @@ function App() {
               </div>
               
               <div style={{ background: '#f0fdf4', padding: '10px 20px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                <h2 style={{ margin: 0, color: '#166534', fontSize: '20px' }}>Total: ₹{totalAmount.toFixed(2)}</h2>
+                <h2 style={{ margin: 0, color: '#166534', fontSize: '20px' }}>Total: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(totalAmount)}</h2>
               </div>
             </div>
 
@@ -187,7 +188,7 @@ function App() {
                 {Object.entries(categoryBreakdown).map(([cat, amt]) => (
                   <div key={cat} style={{ background: '#fff', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', border: '1px solid #dee2e6', display: 'flex', gap: '8px', alignItems: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
                     <span style={{ fontWeight: 'bold', color: '#495057' }}>{cat}</span>
-                    <span style={{ color: '#007bff', fontWeight: '600' }}>₹{amt.toFixed(2)}</span>
+                    <span style={{ color: '#007bff', fontWeight: '600' }}>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amt)}</span>
                   </div>
                 ))}
               </div>
@@ -210,7 +211,7 @@ function App() {
                       <div style={{ fontSize: '14px', color: '#555' }}>{exp.description || <span style={{ color: '#aaa', fontStyle: 'italic' }}>No description</span>}</div>
                     </div>
                     <div style={{ fontWeight: 'bold', fontSize: '18px' }}>
-                      ₹{Number(exp.amount).toFixed(2)}
+                      {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(exp.amount)}
                     </div>
                   </li>
                 ))}
